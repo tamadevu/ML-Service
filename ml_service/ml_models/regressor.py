@@ -1,12 +1,20 @@
 import pickle
 from uuid import uuid4
 from fastapi import HTTPException
+from numpy import ndarray
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor as SklearnRandomForestRegressor
 from pydantic import BaseModel, Field
 import tempfile
+import numpy as np
 
-from ml_service.schemas.regressor import TrainModelResponse
+from sklearn.metrics import mean_squared_error, r2_score
+
+from ml_service.schemas.regressor import (
+    PerformanceMetrics,
+    TestModelResponse,
+    TrainModelResponse,
+)
 
 
 class RandomForestRegressor(BaseModel):
@@ -16,6 +24,9 @@ class RandomForestRegressor(BaseModel):
         default=None, description="Maximum depth for the model"
     )
     random_state: int = Field(..., description="Random state for the model")
+    deployable_threshold: float = Field(
+        default=0.5, description="Threshold for deployment"
+    )
 
     def _validate_data(self, data: pd.DataFrame, is_train: bool = True) -> None:
         """
@@ -38,7 +49,8 @@ class RandomForestRegressor(BaseModel):
 
         if is_train and self.target not in data.columns:
             raise HTTPException(
-                status_code=400, detail=f"Target column '{self.target}' not found"
+                status_code=400,
+                detail=f"Target column '{self.target}' not found. Target column required for training data.",
             )
 
     def _save_model_locally(self, model: SklearnRandomForestRegressor) -> str:
@@ -51,10 +63,9 @@ class RandomForestRegressor(BaseModel):
         Returns:
             str: The file path where the model is saved.
         """
-        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pkl") as tmp_file:
             pickle.dump(model, tmp_file)
-            tmp_file_path = tmp_file.name
-        return tmp_file_path
+            return tmp_file.name
 
     def train(self, train_data: pd.DataFrame) -> TrainModelResponse:
         """
@@ -85,3 +96,39 @@ class RandomForestRegressor(BaseModel):
 
         save_path = self._save_model_locally(model)
         return TrainModelResponse(save_path=save_path, model_id=model_id)
+
+    def _get_performance_metrics(
+        self, y_true: ndarray, y_pred: ndarray
+    ) -> PerformanceMetrics:
+        mse = mean_squared_error(y_true, y_pred)
+        rmse = np.sqrt(mse)
+        r2 = r2_score(y_true, y_pred)
+
+        return PerformanceMetrics(
+            mse=float(mse),
+            rmse=float(rmse),
+            r2=float(r2),
+        )
+
+    def test(
+        self, model: SklearnRandomForestRegressor, test_data: pd.DataFrame
+    ) -> TestModelResponse:
+        self._validate_data(test_data, False)
+
+        X_test: pd.DataFrame = test_data.drop(columns=[self.target])
+        y_test: ndarray = test_data[self.target].to_numpy()
+
+        try:
+            y_pred: ndarray = model.predict(X_test)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Failed to predict on test data. {e}"
+            )
+
+        metrics: PerformanceMetrics = self._get_performance_metrics(y_test, y_pred)
+        is_deployable: bool = metrics.r2 < self.deployable_threshold
+
+        return TestModelResponse(
+            **metrics.model_dump(),
+            deployable=is_deployable,
+        )

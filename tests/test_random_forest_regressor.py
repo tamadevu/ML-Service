@@ -3,8 +3,13 @@ import pandas as pd
 from fastapi import HTTPException
 from sklearn.ensemble import RandomForestRegressor as SklearnRandomForestRegressor
 from ml_service.ml_models.regressor import RandomForestRegressor
-from ml_service.schemas.regressor import TrainModelResponse
-from unittest.mock import patch
+from ml_service.schemas.regressor import (
+    PerformanceMetrics,
+    TrainModelResponse,
+    TestModelResponse,
+)
+from unittest.mock import MagicMock, patch
+import numpy as np
 
 
 @pytest.fixture
@@ -60,6 +65,30 @@ def test_train_model(mock_save_model, mock_fit, regressor, valid_data):
     assert isinstance(result, TrainModelResponse)
     assert mock_fit.called
     assert mock_save_model.called
+
+
+def test_get_performance_metrics(regressor):
+    y_true = np.array([1, 2, 3])
+    y_pred = np.array([2, 3, 4])
+    expected_metrics = PerformanceMetrics(mse=1.0, rmse=1.0, r2=-0.5)
+    assert regressor._get_performance_metrics(y_true, y_pred) == expected_metrics
+
+
+@patch.object(
+    RandomForestRegressor,
+    "_get_performance_metrics",
+    return_value=PerformanceMetrics(mse=1.0, rmse=1.0, r2=-0.5),
+)
+@patch(
+    "ml_service.ml_models.regressor.SklearnRandomForestRegressor.predict",
+    return_value=np.array([1.0, 2.0, 3.0]),
+)
+def test_test_model(mock_save_model, mock_predict, regressor, valid_data):
+    mock_model = MagicMock(spec=SklearnRandomForestRegressor)
+
+    result = regressor.test(mock_model, valid_data)
+    assert isinstance(result, TestModelResponse)
+    assert mock_predict.called
 
 
 if __name__ == "__main__":
