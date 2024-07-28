@@ -4,12 +4,12 @@ from fastapi import HTTPException
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from pydantic import BaseModel, Field
-from sklearn.model_selection import train_test_split
+import tempfile
 
-from ml_service.schemas.regressor import SaveModel, TrainModel
+from ml_service.schemas.regressor import TrainModelResponse
 
 
-class Regressor(BaseModel):
+class RandomForestModel(BaseModel):
     target: str = Field(..., description="Target column name")
     n_estimators: int = Field(..., description="Number of estimators for the model")
     max_depth: int | None = Field(
@@ -41,30 +41,27 @@ class Regressor(BaseModel):
                 status_code=400, detail=f"Target column '{self.target}' not found"
             )
 
-    def _save_model(self, model: RandomForestRegressor) -> SaveModel:
+    def _save_model_locally(self, model: RandomForestRegressor) -> str:
         """
-        Saves the given RandomForestRegressor model to a pickle file in the specified directory.
+        Save the given Random Forest Regressor model locally.
 
-        Args:
+        Parameters:
             model (RandomForestRegressor): The model to be saved.
 
         Returns:
-            str: The path of the saved pickle file.
+            str: The file path where the model is saved.
         """
-        model_id: str = str(uuid4())
-        save_path: str = f"/home/luna/tamadevu/ml_service_models/{model_id}.pkl"
-        with open(save_path, "wb") as f:
-            pickle.dump(model, f)
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            pickle.dump(model, tmp_file)
+            tmp_file_path = tmp_file.name
+        return tmp_file_path
 
-        return SaveModel(save_path=save_path, model_id=model_id)
-
-    def train(self, train_data: pd.DataFrame, test_split: float = 0.2) -> TrainModel:
+    def train(self, train_data: pd.DataFrame) -> TrainModelResponse:
         """
         Trains a random forest regressor model on the given `train_data` and saves the model to a pickle file.
 
         Args:
             train_data (pd.DataFrame): The training data to be used for training the model.
-            test_split (float, optional): The proportion of the dataset to include in the test split. Defaults to 0.2.
 
         Returns:
             TrainModel: An instance of the `TrainModel` class containing the save path, model ID, and score of the trained model.
@@ -82,17 +79,9 @@ class Regressor(BaseModel):
         X: pd.DataFrame = train_data.drop(columns=[self.target])
         y: pd.Series = train_data[self.target]
 
-        X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=test_split, random_state=self.random_state
-        )
+        model.fit(X, y)
 
-        model.fit(X_train, y_train)
-        save_results: SaveModel = self._save_model(model)
+        model_id = str(uuid4())
 
-        score: float = float(model.score(X_val, y_val))
-
-        return TrainModel(
-            save_path=save_results.save_path,
-            model_id=save_results.model_id,
-            score=score,
-        )
+        save_path = self._save_model_locally(model)
+        return TrainModelResponse(save_path=save_path, model_id=model_id)

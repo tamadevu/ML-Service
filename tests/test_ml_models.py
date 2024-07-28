@@ -2,14 +2,16 @@ import pytest
 import pandas as pd
 from fastapi import HTTPException
 from sklearn.ensemble import RandomForestRegressor
-from ml_service.ml_models.regressor import Regressor
-from ml_service.schemas.regressor import SaveModel, TrainModel
-from unittest.mock import mock_open, patch
+from ml_service.ml_models.regressor import RandomForestModel
+from ml_service.schemas.regressor import TrainModelResponse
+from unittest.mock import patch
 
 
 @pytest.fixture
 def regressor():
-    return Regressor(target="target", n_estimators=10, max_depth=5, random_state=42)
+    return RandomForestModel(
+        target="target", n_estimators=10, max_depth=5, random_state=42
+    )
 
 
 @pytest.fixture
@@ -39,29 +41,25 @@ def test_validate_data_valid(regressor, valid_data):
         pytest.fail("Unexpected HTTPException raised")
 
 
-@patch("builtins.open", new_callable=mock_open)
 @patch("pickle.dump")
-def test_save_model(mock_pickle_dump, mock_open_file, regressor):
+def test_save_model(mock_pickle_dump, regressor):
     model = RandomForestRegressor()
-    result = regressor._save_model(model)
-    assert isinstance(result, SaveModel)
-    assert mock_open_file.called
+    result = regressor._save_model_locally(model)
+    assert isinstance(result, str)
     assert mock_pickle_dump.called
 
 
 @patch.object(
-    Regressor,
-    "_save_model",
-    return_value=SaveModel(save_path="path/to/model.pkl", model_id="12345"),
+    RandomForestModel,
+    "_save_model_locally",
+    return_value="path/to/model.pkl",
 )
 @patch("ml_service.ml_models.regressor.RandomForestRegressor.fit")
-@patch("ml_service.ml_models.regressor.RandomForestRegressor.score")
-def test_train_model(mock_save_model, mock_score, mock_fit, regressor, valid_data):
+def test_train_model(mock_save_model, mock_fit, regressor, valid_data):
     result = regressor.train(valid_data)
-    assert isinstance(result, TrainModel)
+    assert isinstance(result, TrainModelResponse)
     assert mock_fit.called
     assert mock_save_model.called
-    assert mock_score.called
 
 
 if __name__ == "__main__":
