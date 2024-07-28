@@ -3,10 +3,9 @@ import json
 from fastapi import FastAPI, HTTPException
 from uuid import uuid4
 import random
-from ml_service.app.utils.schema_encoder_decoder import decode_data_schema
-
-@app.get("/dataset/{data_schema}/{count}")
-async def dataset(data_schema: str, count: int):
+from ml_service.schemas.dataset import CreateDatasetSchema, DataSchema
+@app.post("/dataset")
+async def dataset(body: CreateDatasetSchema):
     """
     Endpoint to generate random data based on the provided data schema.
 
@@ -20,17 +19,17 @@ async def dataset(data_schema: str, count: int):
     Raises:
         HTTPException: If the data schema is invalid or contains unsupported data types.
     """
-    try:
-        data_schema_dict = decode_data_schema(data_schema)
-    except (json.JSONDecodeError, base64.binascii.Error):
-        raise HTTPException(status_code=400, detail="Invalid JSON schema")
+
+    data_schema: list[DataSchema] = body.data_schema
+    count: int = body.count
 
     generated_data: list[dict] = []
 
     for _ in range(count):
         random_datapoint: dict = {}
-        for column, _type in data_schema_dict.items():
-            match _type:
+        for item in data_schema:
+            column = item.name
+            match item.type:
                 case "str":
                     random_datapoint[column] = str(uuid4())
                 case "int":
@@ -42,7 +41,7 @@ async def dataset(data_schema: str, count: int):
                 case _:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Data type {_type} not supported. Please use one of the following: str, int, bool, float",
+                        detail=f"Data type {item.type} not supported. Please use one of the following: str, int, bool, float",
                     )
         generated_data.append(random_datapoint)
 
