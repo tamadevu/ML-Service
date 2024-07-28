@@ -7,6 +7,19 @@ from ml_service.app.utils.schema_encoder_decoder import decode_data_schema
 
 @app.get("/dataset/{data_schema}/{count}")
 async def dataset(data_schema: str, count: int):
+    """
+    Endpoint to generate random data based on the provided data schema.
+
+    Args:
+        data_schema (str): Base64 encoded JSON string representing the data schema.
+        count (int): Number of data points to generate.
+
+    Returns:
+        list[dict]: List of generated data points.
+
+    Raises:
+        HTTPException: If the data schema is invalid or contains unsupported data types.
+    """
     try:
         data_schema_dict = decode_data_schema(data_schema)
     except (json.JSONDecodeError, base64.binascii.Error):

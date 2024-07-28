@@ -13,12 +13,20 @@ def test_health():
 
 
 def test_dataset():
+    """
+    Test the dataset endpoint by generating random data based on a given data schema.
+
+    This test case verifies that the dataset endpoint returns the expected number
+    of data points and that each data point has the correct structure and data types.
+    """
+    # Define the data schema
     data_schema: dict = {
         "name": "str",
         "age": "int",
         "income": "float",
         "is_employed": "bool",
     }
+
     count: int = 5
 
     encoded_schema = encode_data_schema(data_schema)
@@ -26,7 +34,6 @@ def test_dataset():
     assert response.status_code == 200
 
     generated_data: list[dict] = response.json()
-
     assert len(generated_data) == count
 
     for datapoint in generated_data:
@@ -42,11 +49,24 @@ def test_dataset():
 
 
 def test_dataset_invalid_type():
-    data_schema: dict = {"name": "unsupported_type"}
+    """
+    Test the dataset endpoint by requesting random data with an unsupported data type.
 
+    This test case verifies that the dataset endpoint returns a 400 status code and
+    a relevant error message when an unsupported data type is specified in the data schema.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
+    data_schema: dict = {"name": "unsupported_type"}
     count: int = 1
+
     encoded_schema = encode_data_schema(data_schema)
     response = client.get(f"/dataset/{encoded_schema}/{count}")
+
     assert response.status_code == 400
     assert response.json() == {
         "detail": "Data type unsupported_type not supported. Please use one of the following: str, int, bool, float"
