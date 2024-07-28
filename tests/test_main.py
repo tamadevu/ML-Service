@@ -1,7 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
 from ml_service.app.main import app
-from ml_service.app.utils.schema_encoder_decoder import encode_data_schema
 
 client = TestClient(app)
 
@@ -20,32 +19,23 @@ def test_dataset():
     of data points and that each data point has the correct structure and data types.
     """
     # Define the data schema
-    data_schema: dict = {
-        "name": "str",
-        "age": "int",
-        "income": "float",
-        "is_employed": "bool",
-    }
-
+    data_schema = [{"name": "Name", "type": "str"}, {"name": "Age", "type": "int"}]
     count: int = 5
+    payload: dict = {"data_schema": data_schema, "count": count}
 
-    encoded_schema = encode_data_schema(data_schema)
-    response = client.get(f"/dataset/{encoded_schema}/{count}")
+    response = client.post("/dataset", json=payload)
+
     assert response.status_code == 200
 
     generated_data: list[dict] = response.json()
     assert len(generated_data) == count
 
     for datapoint in generated_data:
-        assert "name" in datapoint
-        assert "age" in datapoint
-        assert "income" in datapoint
-        assert "is_employed" in datapoint
+        assert "Name" in datapoint
+        assert "Age" in datapoint
 
-        assert isinstance(datapoint["name"], str)
-        assert isinstance(datapoint["age"], int)
-        assert isinstance(datapoint["income"], float)
-        assert isinstance(datapoint["is_employed"], bool)
+        assert isinstance(datapoint["Name"], str)
+        assert isinstance(datapoint["Age"], int)
 
 
 def test_dataset_invalid_type():
@@ -61,11 +51,11 @@ def test_dataset_invalid_type():
     Returns:
         None
     """
-    data_schema: dict = {"name": "unsupported_type"}
+    data_schema = [{"name": "Name", "type": "unsupported_type"}]
     count: int = 1
 
-    encoded_schema = encode_data_schema(data_schema)
-    response = client.get(f"/dataset/{encoded_schema}/{count}")
+    payload: dict = {"data_schema": data_schema, "count": count}
+    response = client.post("/dataset", json=payload)
 
     assert response.status_code == 400
     assert response.json() == {
