@@ -2,14 +2,14 @@ import pickle
 from uuid import uuid4
 from fastapi import HTTPException
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor as SklearnRandomForestRegressor
 from pydantic import BaseModel, Field
 import tempfile
 
 from ml_service.schemas.regressor import TrainModelResponse
 
 
-class RandomForestModel(BaseModel):
+class RandomForestRegressor(BaseModel):
     target: str = Field(..., description="Target column name")
     n_estimators: int = Field(..., description="Number of estimators for the model")
     max_depth: int | None = Field(
@@ -41,12 +41,12 @@ class RandomForestModel(BaseModel):
                 status_code=400, detail=f"Target column '{self.target}' not found"
             )
 
-    def _save_model_locally(self, model: RandomForestRegressor) -> str:
+    def _save_model_locally(self, model: SklearnRandomForestRegressor) -> str:
         """
         Save the given Random Forest Regressor model locally.
 
         Parameters:
-            model (RandomForestRegressor): The model to be saved.
+            model (SklearnRandomForestRegressor): The model to be saved.
 
         Returns:
             str: The file path where the model is saved.
@@ -69,7 +69,7 @@ class RandomForestModel(BaseModel):
         Raises:
             HTTPException: If the `train_data` does not have column names or if the target column is not found for training.
         """
-        model = RandomForestRegressor(
+        model = SklearnRandomForestRegressor(
             n_estimators=self.n_estimators,
             max_depth=self.max_depth,
             random_state=self.random_state,

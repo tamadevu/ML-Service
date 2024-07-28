@@ -1,15 +1,15 @@
 import pytest
 import pandas as pd
 from fastapi import HTTPException
-from sklearn.ensemble import RandomForestRegressor
-from ml_service.ml_models.regressor import RandomForestModel
+from sklearn.ensemble import RandomForestRegressor as SklearnRandomForestRegressor
+from ml_service.ml_models.regressor import RandomForestRegressor
 from ml_service.schemas.regressor import TrainModelResponse
 from unittest.mock import patch
 
 
 @pytest.fixture
 def regressor():
-    return RandomForestModel(
+    return RandomForestRegressor(
         target="target", n_estimators=10, max_depth=5, random_state=42
     )
 
@@ -43,18 +43,18 @@ def test_validate_data_valid(regressor, valid_data):
 
 @patch("pickle.dump")
 def test_save_model(mock_pickle_dump, regressor):
-    model = RandomForestRegressor()
+    model = SklearnRandomForestRegressor()
     result = regressor._save_model_locally(model)
     assert isinstance(result, str)
     assert mock_pickle_dump.called
 
 
 @patch.object(
-    RandomForestModel,
+    RandomForestRegressor,
     "_save_model_locally",
     return_value="path/to/model.pkl",
 )
-@patch("ml_service.ml_models.regressor.RandomForestRegressor.fit")
+@patch("ml_service.ml_models.regressor.SklearnRandomForestRegressor.fit")
 def test_train_model(mock_save_model, mock_fit, regressor, valid_data):
     result = regressor.train(valid_data)
     assert isinstance(result, TrainModelResponse)
